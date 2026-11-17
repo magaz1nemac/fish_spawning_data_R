@@ -1,0 +1,50 @@
+library(dplyr)
+library(ggplot2)
+
+# Read file
+df <- read.csv("Family_raw.csv", check.names = FALSE)
+
+# Prepare data
+egg_df <- df %>%
+  filter(Location %in% c("Chanthaburi", "Chumphon")) %>%
+  mutate(
+    `Egg Density` = as.numeric(`Egg Density`),
+    Time = factor(
+      paste(Month, Year),
+      levels = c(
+        "June 2024",
+        "October 2024",
+        "January 2025",
+        "April 2025"
+      ),
+      ordered = TRUE
+    )
+  ) %>%
+  arrange(Time)
+
+# Plot
+ggplot(
+  egg_df,
+  aes(
+    x = Time,
+    y = `Egg Density`,
+    color = Location,
+    group = Location
+  )
+) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c(
+    "Chanthaburi" = "#F8766D",
+    "Chumphon" = "#00BFC4"
+  )) +
+  labs(
+    title = "Fish Egg Abundance (eggs/m³) in Chanthaburi vs Chumphon",
+    x = "Sampling Time",
+    y = expression("Egg Abundance (eggs/" * m^3 * ")")
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
