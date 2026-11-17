@@ -1,0 +1,118 @@
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+
+# Read file
+df <- read.csv(
+  "Family_anchovy_included.csv",
+  check.names = FALSE
+)
+
+# Metadata columns
+meta_cols <- c(
+  "SiteID","Location","Month","Year",
+  "SST","Salinity","Rainfall","Phase",
+  "Total Eggs","Egg Density","Barcoded Eggs"
+)
+
+# Community matrix
+comm <- df[, !(names(df) %in% meta_cols)]
+
+# Egg morphology columns
+egg_cols <- c(
+  "Ellipsoid Eggs of total",
+  "Shuttle eggs of total"
+)
+
+# Family columns
+family_cols <- setdiff(
+  names(comm),
+  egg_cols
+)
+
+# Family 0 = unknown
+comm[family_cols] <- lapply(
+  comm[family_cols],
+  function(x){
+    x[x == 0] <- NA
+    x
+  }
+)
+
+# NMDS matrix
+comm_nmds <- comm
+comm_nmds[is.na(comm_nmds)] <- 0
+
+row.names(comm_nmds) <- df$SiteID
+
+# Run NMDS
+set.seed(123)
+
+nmds <- metaMDS(
+  comm_nmds,
+  distance = "bray",
+  k = 2,
+  trymax = 999,
+  autotransform = FALSE
+)
+
+# Site scores
+scores_df <- as.data.frame(
+  scores(nmds, display = "sites")
+)
+
+scores_df$Location <- df$Location
+
+scores_df$Month <- factor(
+  df$Month,
+  levels = c(
+    "January",
+    "April",
+    "June",
+    "October"
+  )
+)
+
+# Plot
+ggplot(
+  scores_df,
+  aes(
+    NMDS1,
+    NMDS2,
+    colour = Location,
+    shape = Month
+  )
+) +
+
+  geom_point(
+    size = 4
+  ) +
+
+  scale_colour_manual(
+    values = c(
+      "Chanthaburi" = "#F8766D",
+      "Chumphon" = "#00BFC4",
+      "InnerGoT" = "#7CAE00"
+    )
+  ) +
+
+  scale_shape_manual(
+    values = c(
+      "January" = 17,
+      "April" = 16,
+      "June" = 15,
+      "October" = 18
+    )
+  ) +
+
+  theme_classic(base_size = 14) +
+
+  labs(
+    title = "Family-level NMDS",
+    subtitle = paste(
+      "Stress =",
+      round(nmds$stress, 3)
+    ),
+    colour = "Location",
+    shape = "Month"
+  )
