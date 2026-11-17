@@ -1,0 +1,169 @@
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+library(grid)
+
+# Read file
+df <- read.csv(
+  "species_anchovy_included.csv",
+  check.names = FALSE
+)
+
+# Metadata columns
+meta_cols <- c(
+  "SiteID","Location","Month","Year",
+  "SST","Salinity","Rainfall","Phase",
+  "Total Eggs","Egg Density","Barcoded Eggs"
+)
+
+# Community matrix
+comm <- df[, !(names(df) %in% meta_cols)]
+
+# Egg morphology columns
+egg_cols <- c(
+  "Ellipsoid Eggs of total",
+  "Shuttle eggs of total"
+)
+
+# Species columns
+species_cols <- setdiff(
+  names(comm),
+  egg_cols
+)
+
+# Species 0 = unknown
+comm[species_cols] <- lapply(
+  comm[species_cols],
+  function(x){
+    x[x == 0] <- NA
+    x
+  }
+)
+
+# NMDS matrix
+comm_nmds <- comm
+comm_nmds[is.na(comm_nmds)] <- 0
+
+row.names(comm_nmds) <- df$SiteID
+
+# NMDS
+set.seed(123)
+
+nmds_sp <- metaMDS(
+  comm_nmds,
+  distance = "bray",
+  k = 2,
+  trymax = 999,
+  autotransform = FALSE
+)
+
+# Site scores
+scores_df <- as.data.frame(
+  scores(nmds_sp, display = "sites")
+)
+
+scores_df$Month <- factor(
+  df$Month,
+  levels = c(
+    "January",
+    "April",
+    "June",
+    "October"
+  )
+)
+
+scores_df$Rainfall <- df$Rainfall
+
+# Environmental vectors
+env <- df[, c(
+  "SST",
+  "Salinity",
+  "Rainfall"
+)]
+
+fit_env <- envfit(
+  nmds_sp,
+  env,
+  permutations = 999
+)
+
+env_vec <- as.data.frame(
+  scores(fit_env, display = "vectors")
+)
+
+env_vec$Variable <- rownames(env_vec)
+
+# Plot
+mult <- 1.5
+
+ggplot() +
+
+  geom_point(
+    data = scores_df,
+    aes(
+      NMDS1,
+      NMDS2,
+      colour = Rainfall,
+      shape = Month
+    ),
+    size = 4
+  ) +
+
+  geom_segment(
+    data = env_vec,
+    aes(
+      x = 0,
+      y = 0,
+      xend = NMDS1 * mult,
+      yend = NMDS2 * mult
+    ),
+    colour = "black",
+    linewidth = 0.8,
+    arrow = arrow(
+      length = unit(0.12, "cm")
+    )
+  ) +
+
+  geom_text(
+    data = env_vec,
+    aes(
+      x = NMDS1 * mult * 1.03,
+      y = NMDS2 * mult * 1.03,
+      label = Variable
+    ),
+    colour = "black",
+    size = 3,
+    fontface = "bold"
+  ) +
+
+  scale_colour_gradientn(
+    colours = c(
+      "#EFF3FF",
+      "#BDD7E7",
+      "#6BAED6",
+      "#3182BD",
+      "#08519C"
+    ),
+    name = "Rainfall"
+  ) +
+
+  scale_shape_manual(
+    values = c(
+      January = 17,
+      April = 16,
+      June = 15,
+      October = 18
+    )
+  ) +
+
+  theme_classic(base_size = 14) +
+
+  labs(
+    title = "Species-level NMDS",
+    subtitle = paste(
+      "Stress =",
+      round(nmds_sp$stress, 3)
+    ),
+    colour = "Rainfall",
+    shape = "Month"
+  )
